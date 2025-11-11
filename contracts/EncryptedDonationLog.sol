@@ -12,7 +12,7 @@ contract EncryptedDonationLog is SepoliaConfig {
     constructor() {
         owner = msg.sender;
         paused = false;
-        minimumDonationAmount = 10; // Default minimum donation of 10 units
+        minimumDonationAmount = 1; // Default minimum donation of 1 unit
         maximumDonationAmount = 10000; // Default maximum donation of 10000 units
     }
 
