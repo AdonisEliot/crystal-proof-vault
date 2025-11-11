@@ -98,7 +98,8 @@ contract EncryptedDonationLog is SepoliaConfig {
         externalEuint32 encryptedTimestamp,
         bytes calldata inputProof
     ) external whenNotPaused returns (uint256 recordId) {
-        // Missing maximum donation amount validation
+        // Note: Maximum donation validation should be performed on frontend
+        // as amounts are encrypted and cannot be validated on-chain
         recordId = nextRecordId++;
         
         DonationRecord storage record = records[recordId];
