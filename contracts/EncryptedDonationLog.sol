@@ -187,8 +187,7 @@ contract EncryptedDonationLog is SepoliaConfig {
         totalDonations = userRecordIds.length;
 
         if (totalDonations > 0) {
-            // Bug: should return the record ID, not the index value
-            lastDonationId = totalDonations - 1;
+            lastDonationId = userRecordIds[totalDonations - 1];
         } else {
             lastDonationId = 0;
         }
