@@ -1,12 +1,35 @@
+import { useState, useRef } from "react";
 import { Shield, Lock, Eye, Heart, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DonationTile } from "@/components/DonationTile";
 import { ImpactMeter } from "@/components/ImpactMeter";
 import { WalletConnect } from "@/components/WalletConnect";
+import { DonationDialog } from "@/components/DonationDialog";
+import { useWallet } from "@/hooks/useWallet";
+import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/logo.png";
 import heroBackground from "@/assets/hero-bg.jpg";
 
 const Index = () => {
+  const [isDonationOpen, setIsDonationOpen] = useState(false);
+  const { isConnected } = useWallet();
+  const { toast } = useToast();
+  const featuresRef = useRef<HTMLElement>(null);
+
+  const handleStartDonating = () => {
+    if (!isConnected) {
+      toast({
+        title: "Wallet Required",
+        description: "Please connect your Rainbow Wallet first to make donations.",
+      });
+      return;
+    }
+    setIsDonationOpen(true);
+  };
+
+  const handleLearnMore = () => {
+    featuresRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
   const sampleDonations = [
     {
       amount: "***.**",
@@ -86,11 +109,20 @@ const Index = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Button size="lg" className="bg-gradient-primary hover:opacity-90 transition-opacity shadow-crystal">
+              <Button 
+                size="lg" 
+                onClick={handleStartDonating}
+                className="bg-gradient-primary hover:opacity-90 transition-opacity shadow-crystal"
+              >
                 Start Donating
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-              <Button size="lg" variant="outline" className="border-glass-border bg-glass-bg/50 backdrop-blur-sm hover:bg-glass-bg/80">
+              <Button 
+                size="lg" 
+                variant="outline" 
+                onClick={handleLearnMore}
+                className="border-glass-border bg-glass-bg/50 backdrop-blur-sm hover:bg-glass-bg/80"
+              >
                 Learn More
                 <Eye className="ml-2 h-4 w-4" />
               </Button>
@@ -100,7 +132,7 @@ const Index = () => {
       </section>
 
       {/* Features */}
-      <section className="py-20 bg-gradient-glass backdrop-blur-xl">
+      <section ref={featuresRef} className="py-20 bg-gradient-glass backdrop-blur-xl">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             <div className="text-center space-y-3 p-6 rounded-2xl bg-card/30 backdrop-blur-sm border border-glass-border hover:shadow-glass transition-all duration-500">
@@ -160,6 +192,9 @@ const Index = () => {
 
       {/* Impact Meter Footer */}
       <ImpactMeter />
+
+      {/* Donation Dialog */}
+      <DonationDialog open={isDonationOpen} onOpenChange={setIsDonationOpen} />
     </div>
   );
 };
