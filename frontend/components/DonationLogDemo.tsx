@@ -34,8 +34,7 @@ export const DonationLogDemo = () => {
 
   const [donationAmount, setDonationAmount] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // Bug: donationRecords not properly initialized
-  const [donationRecords, setDonationRecords] = useState<DonationRecord[]>();
+  const [donationRecords, setDonationRecords] = useState<DonationRecord[]>([]);
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
   const [message, setMessage] = useState<string>("");
   const [decryptingRecordId, setDecryptingRecordId] = useState<number | null>(null);
@@ -140,7 +139,7 @@ export const DonationLogDemo = () => {
         }
       }
 
-      setDonationRecords(records || []);
+      setDonationRecords(records);
     } catch (error: any) {
       console.error("[loadDonationRecords] Error loading records:", error);
       setMessage(`Failed to load donation records: ${error.message || 'Unknown error'}`);
@@ -521,7 +520,7 @@ export const DonationLogDemo = () => {
           </button>
         </div>
 
-        {(!donationRecords || donationRecords.length === 0) ? (
+        {donationRecords.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No donation records found</p>
         ) : (
           <div className="space-y-4">
@@ -546,7 +545,7 @@ export const DonationLogDemo = () => {
 
             {/* Filtered and Sorted Records */}
             {(() => {
-              const filteredRecords = (donationRecords || [])
+              const filteredRecords = donationRecords
                 .filter(record => record.recordId.toString().includes(filterText))
                 .sort((a, b) => sortOrder === 'desc'
                   ? Number(b.recordId) - Number(a.recordId)
