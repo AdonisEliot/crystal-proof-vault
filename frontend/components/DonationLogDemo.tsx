@@ -261,12 +261,11 @@ export const DonationLogDemo = () => {
         eip712.message
       );
 
-      // Bug: incorrect signature format - should not remove "0x" prefix
       const amountResult = await zama.userDecrypt(
         amountHandlePairs,
         keypair.privateKey,
         keypair.publicKey,
-        signature,
+        signature.replace("0x", ""),
         contractAddresses,
         address,
         startTimeStamp,
