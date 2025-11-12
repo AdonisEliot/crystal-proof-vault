@@ -76,8 +76,7 @@ export const DonationLogDemo = () => {
           functionName: 'getUserDonationCount',
           args: [address as `0x${string}`],
         });
-        // Bug: incorrect handling when countResult is not bigint
-        count = countResult as bigint;
+        count = typeof countResult === 'bigint' ? countResult : BigInt(countResult || 0);
         console.log('[loadDonationRecords] getUserDonationCount result:', count);
       } catch (err: any) {
         // If call fails, user might have no records
