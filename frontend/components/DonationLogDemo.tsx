@@ -174,6 +174,13 @@ export const DonationLogDemo = () => {
         return;
       }
 
+      // Validate donation amount range
+      if (amount < 1 || amount > 10000) {
+        setMessage("Donation amount must be between 1 and 10,000 units");
+        setIsSubmitting(false);
+        return;
+      }
+
       // Encrypt amount and timestamp
       const encryptedInput = await zama.createEncryptedInput(contractAddress, address!)
         .add32(amount)
