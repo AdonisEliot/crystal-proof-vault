@@ -206,7 +206,19 @@ export const DonationLogDemo = () => {
       await loadDonationRecords();
     } catch (error: any) {
       console.error("Error submitting donation:", error);
-      setMessage(`Error: ${error.message || "Failed to submit donation"}`);
+      let errorMessage = "Failed to submit donation";
+
+      if (error.message?.includes("user rejected")) {
+        errorMessage = "Transaction was cancelled by user";
+      } else if (error.message?.includes("insufficient funds")) {
+        errorMessage = "Insufficient funds for transaction";
+      } else if (error.message?.includes("network")) {
+        errorMessage = "Network error. Please check your connection and try again";
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+
+      setMessage(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
