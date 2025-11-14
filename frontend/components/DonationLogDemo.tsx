@@ -40,6 +40,7 @@ export const DonationLogDemo = () => {
   const [decryptingRecordId, setDecryptingRecordId] = useState<number | null>(null);
   const [filterText, setFilterText] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -221,6 +222,43 @@ export const DonationLogDemo = () => {
       setMessage(errorMessage);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleExportRecords = async () => {
+    if (!donationRecords.length) {
+      setMessage("No records to export");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const exportData = donationRecords.map(record => ({
+        recordId: record.recordId,
+        amount: record.amount,
+        timestamp: record.timestamp,
+        blockNumber: record.blockNumber,
+        exportedAt: new Date().toISOString()
+      }));
+
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `donation-records-${Date.now()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setMessage("Records exported successfully!");
+    } catch (error: any) {
+      console.error("Error exporting records:", error);
+      setMessage("Failed to export records");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -530,20 +568,36 @@ export const DonationLogDemo = () => {
       <div className="bg-white rounded-xl p-6 shadow-lg">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold">My Donation Records</h2>
-          <button
-            onClick={loadDonationRecords}
-            disabled={isLoadingRecords}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 flex items-center gap-2"
-          >
-            {isLoadingRecords ? (
-              <>
-                <LoadingSpinner size="sm" />
-                Loading...
-              </>
-            ) : (
-              "Refresh"
-            )}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExportRecords}
+              disabled={isExporting || donationRecords.length === 0}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isExporting ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  Exporting...
+                </>
+              ) : (
+                "Export Records"
+              )}
+            </button>
+            <button
+              onClick={loadDonationRecords}
+              disabled={isLoadingRecords}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 flex items-center gap-2"
+            >
+              {isLoadingRecords ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  Loading...
+                </>
+              ) : (
+                "Refresh"
+              )}
+            </button>
+          </div>
         </div>
 
         {donationRecords.length === 0 ? (
