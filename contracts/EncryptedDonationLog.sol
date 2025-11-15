@@ -193,6 +193,32 @@ contract EncryptedDonationLog is SepoliaConfig {
         }
     }
 
+    /// @notice Get user donation level based on total donations
+    /// @param user The user address to query
+    /// @return level The donation level (1-5 based on donation count)
+    function getUserDonationLevel(address user) external view returns (uint256 level) {
+        uint256 donationCount = userDonations[user].length;
+
+        if (donationCount >= 50) return 5;      // Diamond donor
+        if (donationCount >= 25) return 4;      // Platinum donor
+        if (donationCount >= 10) return 3;      // Gold donor
+        if (donationCount >= 5) return 2;       // Silver donor
+        if (donationCount >= 1) return 1;       // Bronze donor
+
+        return 0; // No donations
+    }
+
+    /// @notice Get donation statistics for a user
+        uint256[] memory userRecordIds = userDonations[user];
+        totalDonations = userRecordIds.length;
+
+        if (totalDonations > 0) {
+            lastDonationId = userRecordIds[totalDonations - 1];
+        } else {
+            lastDonationId = 0;
+        }
+    }
+
     /// @notice Get multiple donation record IDs for a user with pagination
     /// @param user The user address to query
     /// @param offset The starting index for pagination
