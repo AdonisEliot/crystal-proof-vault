@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, usePublicClient, useChainId, useSwitchChain } from 'wagmi';
 import { ethers } from "ethers";
@@ -625,14 +625,16 @@ export const DonationLogDemo = () => {
 
             {/* Filtered and Sorted Records */}
             {(() => {
-              const filteredRecords = donationRecords
-                .filter(record => record.recordId.toString().includes(filterText))
-                .sort((a, b) => sortOrder === 'desc'
-                  ? Number(b.recordId) - Number(a.recordId)
-                  : Number(a.recordId) - Number(b.recordId)
-                );
+              const filteredAndSortedRecords = useMemo(() => {
+                return donationRecords
+                  .filter(record => record.recordId.toString().includes(filterText))
+                  .sort((a, b) => sortOrder === 'desc'
+                    ? Number(b.recordId) - Number(a.recordId)
+                    : Number(a.recordId) - Number(b.recordId)
+                  );
+              }, [donationRecords, filterText, sortOrder]);
 
-              return filteredRecords.map((record) => (
+              return filteredAndSortedRecords.map((record) => (
                 <div key={record.recordId} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
