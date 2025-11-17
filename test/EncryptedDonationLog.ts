@@ -240,5 +240,16 @@ describe("EncryptedDonationLog", function () {
     expect(aliceSubmitter).to.eq(signers.alice.address);
     expect(bobSubmitter).to.eq(signers.bob.address);
   });
+
+  describe("User Donation Levels", function () {
+    it("Should return level 0 for users with no donations", async function () {
+      const level = await donationLogContract.getUserDonationLevel(signers.alice.address);
+      expect(level).to.equal(0);
+    });
+
+    it("Should have getUserDonationLevel function", async function () {
+      expect(donationLogContract.getUserDonationLevel).to.be.a('function');
+    });
+  });
 });
 
