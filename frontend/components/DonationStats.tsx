@@ -8,87 +8,90 @@ import { EncryptedDonationLogABI } from "@/abi/EncryptedDonationLogABI";
 import { config as wagmiConfig } from "@/config/wagmi";
 
 interface DonationStatsProps {
-  totalRecords: number;
-  userRecords: number;
+  totalRecords?: number;
+  userRecords?: number;
+  refreshTrigger?: any;
 }
 
 const getLevelInfo = (level: number) => {
   const levels = {
-    0: { name: "Visitor", color: "text-gray-600", bgColor: "bg-gray-100" },
-    1: { name: "Bronze", color: "text-amber-600", bgColor: "bg-amber-100" },
-    2: { name: "Silver", color: "text-gray-500", bgColor: "bg-gray-200" },
-    3: { name: "Gold", color: "text-yellow-600", bgColor: "bg-yellow-100" },
-    4: { name: "Platinum", color: "text-blue-600", bgColor: "bg-blue-100" },
-    5: { name: "Diamond", color: "text-purple-600", bgColor: "bg-purple-100" }
+    0: { name: "Visitor", color: "text-gray-600", bgColor: "bg-gray-100", next: 1 },
+    1: { name: "Bronze", color: "text-amber-600", bgColor: "bg-amber-100", next: 5 },
+    2: { name: "Silver", color: "text-gray-500", bgColor: "bg-gray-200", next: 10 },
+    3: { name: "Gold", color: "text-yellow-600", bgColor: "bg-yellow-100", next: 25 },
+    4: { name: "Platinum", color: "text-blue-600", bgColor: "bg-blue-100", next: 50 },
+    5: { name: "Diamond", color: "text-purple-600", bgColor: "bg-purple-100", next: Infinity }
   };
   return levels[level as keyof typeof levels] || levels[0];
 };
 
-export const DonationStats = ({ totalRecords, userRecords }: DonationStatsProps) => {
+export const DonationStats = ({ totalRecords, userRecords, refreshTrigger }: DonationStatsProps) => {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const [stats, setStats] = useState({
-    totalDonations: 0,
-    userDonations: 0,
+    totalDonations: totalRecords || 0,
+    userDonations: userRecords || 0,
     userLevel: 0,
     isLoading: false
   });
 
   const contractAddress = chainId ? EncryptedDonationLogAddresses[chainId.toString()]?.address : undefined;
 
-  useEffect(() => {
-    const loadStats = async () => {
-      if (!contractAddress || !isConnected) return;
+  const loadStats = async () => {
+    if (!contractAddress || !isConnected) return;
 
-      setStats(prev => ({ ...prev, isLoading: true }));
+    setStats(prev => ({ ...prev, isLoading: true }));
 
-      try {
-        // Get total records by reading nextRecordId
-        const nextIdResult = await readContract(wagmiConfig, {
+    try {
+      // Get total records by reading nextRecordId
+      const nextIdResult = await readContract(wagmiConfig, {
+        address: contractAddress as `0x${string}`,
+        abi: EncryptedDonationLogABI.abi,
+        functionName: 'getTotalDonationCount',
+      });
+
+      const totalDonations = typeof nextIdResult === 'bigint' ? Number(nextIdResult) : Number(nextIdResult || 0);
+
+      // Get user donation count and level
+      let userDonationsCount = 0;
+      let userLevel = 0;
+      if (address) {
+        const userCountResult = await readContract(wagmiConfig, {
           address: contractAddress as `0x${string}`,
           abi: EncryptedDonationLogABI.abi,
-          functionName: 'nextRecordId',
+          functionName: 'getUserDonationCount',
+          args: [address as `0x${string}`],
         });
+        userDonationsCount = typeof userCountResult === 'bigint' ? Number(userCountResult) : Number(userCountResult || 0);
 
-        const totalDonations = typeof nextIdResult === 'bigint' ? Number(nextIdResult) : Number(nextIdResult || 0);
-
-        // Get user donation count and level
-        let userDonations = 0;
-        let userLevel = 0;
-        if (address) {
-          const userCountResult = await readContract(wagmiConfig, {
-            address: contractAddress as `0x${string}`,
-            abi: EncryptedDonationLogABI.abi,
-            functionName: 'getUserDonationCount',
-            args: [address as `0x${string}`],
-          });
-          userDonations = typeof userCountResult === 'bigint' ? Number(userCountResult) : Number(userCountResult || 0);
-
-          const userLevelResult = await readContract(wagmiConfig, {
-            address: contractAddress as `0x${string}`,
-            abi: EncryptedDonationLogABI.abi,
-            functionName: 'getUserDonationLevel',
-            args: [address as `0x${string}`],
-          });
-          userLevel = typeof userLevelResult === 'bigint' ? Number(userLevelResult) : Number(userLevelResult || 0);
-        }
-
-        setStats({
-          totalDonations,
-          userDonations,
-          userLevel,
-          isLoading: false
+        const userLevelResult = await readContract(wagmiConfig, {
+          address: contractAddress as `0x${string}`,
+          abi: EncryptedDonationLogABI.abi,
+          functionName: 'getUserDonationLevel',
+          args: [address as `0x${string}`],
         });
-      } catch (error) {
-        console.error("Error loading donation stats:", error);
-        setStats(prev => ({ ...prev, isLoading: false }));
+        userLevel = typeof userLevelResult === 'bigint' ? Number(userLevelResult) : Number(userLevelResult || 0);
       }
-    };
 
+      setStats({
+        totalDonations,
+        userDonations: userDonationsCount,
+        userLevel,
+        isLoading: false
+      });
+    } catch (error) {
+      console.error("Error loading donation stats:", error);
+      setStats(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  useEffect(() => {
     loadStats();
-  }, [contractAddress, isConnected, address]);
+  }, [contractAddress, isConnected, address, refreshTrigger]);
 
   const levelInfo = getLevelInfo(stats.userLevel);
+  const nextLevelInfo = stats.userLevel < 5 ? getLevelInfo(stats.userLevel + 1) : null;
+  const donationsToNext = nextLevelInfo ? nextLevelInfo.next - stats.userDonations : 0;
 
   return (
     <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 shadow-lg">
@@ -107,12 +110,15 @@ export const DonationStats = ({ totalRecords, userRecords }: DonationStatsProps)
           <div className="text-sm text-gray-600">Donor Level</div>
         </div>
       </div>
-      {stats.userLevel > 0 && (
+      {stats.userLevel >= 0 && (
         <div className="text-center text-sm text-gray-600">
-          {stats.userLevel < 5 ?
-            `Make ${stats.userLevel === 1 ? 5 : stats.userLevel === 2 ? 10 : stats.userLevel === 3 ? 25 : 50} more donations to reach the next level!` :
+          {stats.userLevel < 5 ? (
+            donationsToNext > 0 ? 
+              `Make ${donationsToNext} more donation${donationsToNext > 1 ? 's' : ''} to reach ${nextLevelInfo?.name} level!` :
+              `You are eligible for the ${nextLevelInfo?.name} level!`
+          ) : (
             "🏆 You've reached the highest donor level!"
-          }
+          )}
         </div>
       )}
       {stats.isLoading && (

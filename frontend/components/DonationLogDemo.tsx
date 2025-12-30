@@ -12,6 +12,7 @@ import { EncryptedDonationLogABI } from "@/abi/EncryptedDonationLogABI";
 import { config as wagmiConfig } from "@/config/wagmi";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { DonationStats } from "@/components/DonationStats";
 
 interface DonationRecord {
   recordId: number;
@@ -77,68 +78,41 @@ export const DonationLogDemo = () => {
           args: [address as `0x${string}`],
         });
         count = typeof countResult === 'bigint' ? countResult : BigInt(countResult || 0);
-        console.log('[loadDonationRecords] getUserDonationCount result:', count);
       } catch (err: any) {
-        // If call fails, user might have no records
         console.log('[loadDonationRecords] getUserDonationCount failed, assuming 0:', err.message);
         count = 0n;
       }
 
       const countNumber = Number(count);
-      const records: DonationRecord[] = [];
-
-      for (let i = 0; i < countNumber; i++) {
-        try {
-          const recordId = await readContract(wagmiConfig, {
-            address: contractAddress as `0x${string}`,
-            abi: EncryptedDonationLogABI.abi,
-            functionName: 'getUserDonationIdAt',
-            args: [address as `0x${string}`, BigInt(i)],
-          });
-          
-          const metadata = await readContract(wagmiConfig, {
-            address: contractAddress as `0x${string}`,
-            abi: EncryptedDonationLogABI.abi,
-            functionName: 'getRecordMetadata',
-            args: [typeof recordId === 'bigint' ? recordId : BigInt(recordId)],
-          });
-          
-          const recordIdNumber = typeof recordId === 'bigint' ? Number(recordId) : Number(recordId);
-          
-          // Type guard for metadata object
-          // readContract returns a tuple [address, bigint] for getRecordMetadata
-          let blockNumber: string;
-          const metadataAny = metadata as unknown;
-          
-          if (Array.isArray(metadataAny) && metadataAny.length >= 2) {
-            // Handle tuple return type [address, blockNumber]
-            const blockNum = metadataAny[1];
-            blockNumber = typeof blockNum === 'bigint' ? blockNum.toString() : String(blockNum || '0');
-          } else if (typeof metadataAny === 'object' && metadataAny !== null && 'blockNumber' in metadataAny) {
-            // Handle object return type { submitter, blockNumber }
-            const meta = metadataAny as { blockNumber?: bigint | number | string };
-            if (typeof meta.blockNumber === 'bigint') {
-              blockNumber = meta.blockNumber.toString();
-            } else if (meta.blockNumber !== undefined) {
-              blockNumber = meta.blockNumber.toString();
-            } else {
-              blockNumber = '0';
-            }
-          } else {
-            // Fallback for other types
-            blockNumber = String(metadataAny || '0');
-          }
-          
-          records.push({
-            recordId: recordIdNumber,
-            amount: "Encrypted",
-            timestamp: "Encrypted",
-            blockNumber: blockNumber,
-          });
-        } catch (err) {
-          console.error(`[loadDonationRecords] Error loading record ${i}:`, err);
-        }
+      if (countNumber === 0) {
+        setDonationRecords([]);
+        return;
       }
+
+      // Fetch all user record IDs in one batch (or paginated if very large, but here we'll take up to 100)
+      const recordIds = await readContract(wagmiConfig, {
+        address: contractAddress as `0x${string}`,
+        abi: EncryptedDonationLogABI.abi,
+        functionName: 'getUserDonationIdsPaginated',
+        args: [address as `0x${string}`, 0n, BigInt(Math.min(countNumber, 100))],
+      }) as bigint[];
+
+      // Fetch metadata for all records in one batch
+      const batchMetadata = await readContract(wagmiConfig, {
+        address: contractAddress as `0x${string}`,
+        abi: EncryptedDonationLogABI.abi,
+        functionName: 'getBatchRecordMetadata',
+        args: [recordIds],
+      }) as [string[], bigint[], boolean[]];
+
+      const [submitters, blockNumbers, exists] = batchMetadata;
+      
+      const records: DonationRecord[] = recordIds.map((id, index) => ({
+        recordId: Number(id),
+        amount: "Encrypted",
+        timestamp: "Encrypted",
+        blockNumber: blockNumbers[index].toString(),
+      }));
 
       setDonationRecords(records);
     } catch (error: any) {
@@ -386,6 +360,15 @@ export const DonationLogDemo = () => {
   };
 
 
+  const filteredAndSortedRecords = useMemo(() => {
+    return donationRecords
+      .filter(record => record.recordId.toString().includes(filterText))
+      .sort((a, b) => sortOrder === 'desc'
+        ? Number(b.recordId) - Number(a.recordId)
+        : Number(a.recordId) - Number(b.recordId)
+      );
+  }, [donationRecords, filterText, sortOrder]);
+
   if (!mounted) {
     return (
       <div className="mx-auto mt-20">
@@ -532,6 +515,8 @@ export const DonationLogDemo = () => {
         </div>
       )}
 
+      <DonationStats refreshTrigger={donationRecords.length} />
+
       <div className="bg-white rounded-xl p-6 shadow-lg">
         <h2 className="text-2xl font-bold mb-4">Submit New Donation</h2>
         <div className="space-y-4">
@@ -624,44 +609,33 @@ export const DonationLogDemo = () => {
             </div>
 
             {/* Filtered and Sorted Records */}
-            {(() => {
-              const filteredAndSortedRecords = useMemo(() => {
-                return donationRecords
-                  .filter(record => record.recordId.toString().includes(filterText))
-                  .sort((a, b) => sortOrder === 'desc'
-                    ? Number(b.recordId) - Number(a.recordId)
-                    : Number(a.recordId) - Number(b.recordId)
-                  );
-              }, [donationRecords, filterText, sortOrder]);
-
-              return filteredAndSortedRecords.map((record) => (
-                <div key={record.recordId} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-500">Record ID: {record.recordId}</p>
-                      <p className="text-lg font-semibold mt-2">
-                        Amount: {record.amount}
-                      </p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Timestamp: {record.timestamp}
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Block: {record.blockNumber}
-                      </p>
-                    </div>
-                    {record.amount === "Encrypted" && (
-                      <button
-                        onClick={() => handleDecryptRecord(record.recordId)}
-                        disabled={decryptingRecordId === record.recordId || zamaLoading}
-                        className="ml-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {decryptingRecordId === record.recordId ? "Decrypting..." : "Decrypt"}
-                      </button>
-                    )}
+            {filteredAndSortedRecords.map((record) => (
+              <div key={record.recordId} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-500">Record ID: {record.recordId}</p>
+                    <p className="text-lg font-semibold mt-2">
+                      Amount: {record.amount}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Timestamp: {record.timestamp}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Block: {record.blockNumber}
+                    </p>
                   </div>
+                  {record.amount === "Encrypted" && (
+                    <button
+                      onClick={() => handleDecryptRecord(record.recordId)}
+                      disabled={decryptingRecordId === record.recordId || zamaLoading}
+                      className="ml-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {decryptingRecordId === record.recordId ? "Decrypting..." : "Decrypt"}
+                    </button>
+                  )}
                 </div>
-              ));
-            })()}
+              </div>
+            ))}
           </div>
         )}
       </div>

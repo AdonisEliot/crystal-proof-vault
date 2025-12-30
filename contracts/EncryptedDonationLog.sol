@@ -8,23 +8,29 @@ import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 /// @notice A contract for storing encrypted donation records that can only be decrypted by the donor
 /// @author Encrypted Donation Log MVP
 contract EncryptedDonationLog is SepoliaConfig {
+    error NotOwner();
+    error ContractPaused();
+    error InvalidNewOwner();
+    error InvalidDonationRange();
+    error RecordNotFound();
+    error IndexOutOfBounds();
+
     /// @notice Contract constructor
     constructor() {
         owner = msg.sender;
-        paused = false;
         minimumDonationAmount = 1; // Default minimum donation of 1 unit
         maximumDonationAmount = 10000; // Default maximum donation of 10000 units
     }
 
     /// @notice Modifier to check if contract is not paused
     modifier whenNotPaused() {
-        require(!paused, "Contract is paused");
+        if (paused) revert ContractPaused();
         _;
     }
 
     /// @notice Modifier to check if caller is owner
     modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can call this function");
+        if (msg.sender != owner) revert NotOwner();
         _;
     }
     struct DonationRecord {
@@ -67,7 +73,7 @@ contract EncryptedDonationLog is SepoliaConfig {
     /// @notice Transfer ownership to a new address (only owner)
     /// @param newOwner The address of the new owner
     function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "New owner cannot be zero address");
+        if (newOwner == address(0)) revert InvalidNewOwner();
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
     }
@@ -75,7 +81,7 @@ contract EncryptedDonationLog is SepoliaConfig {
     /// @notice Set minimum donation amount (only owner)
     /// @param newMinimum The new minimum donation amount
     function setMinimumDonationAmount(uint256 newMinimum) external onlyOwner {
-        require(newMinimum <= maximumDonationAmount, "Minimum cannot exceed maximum");
+        if (newMinimum > maximumDonationAmount) revert InvalidDonationRange();
         minimumDonationAmount = newMinimum;
         emit MinimumDonationAmountChanged(owner, newMinimum);
     }
@@ -83,7 +89,7 @@ contract EncryptedDonationLog is SepoliaConfig {
     /// @notice Set maximum donation amount (only owner)
     /// @param newMaximum The new maximum donation amount
     function setMaximumDonationAmount(uint256 newMaximum) external onlyOwner {
-        require(newMaximum >= minimumDonationAmount, "Maximum cannot be less than minimum");
+        if (newMaximum < minimumDonationAmount) revert InvalidDonationRange();
         maximumDonationAmount = newMaximum;
         emit MaximumDonationAmountChanged(owner, newMaximum);
     }
@@ -127,7 +133,7 @@ contract EncryptedDonationLog is SepoliaConfig {
     /// @param recordId The ID of the donation record
     /// @return The encrypted amount
     function getEncryptedAmount(uint256 recordId) external view returns (euint32) {
-        require(records[recordId].exists, "Record does not exist");
+        if (!records[recordId].exists) revert RecordNotFound();
         return records[recordId].encryptedAmount;
     }
 
@@ -135,7 +141,7 @@ contract EncryptedDonationLog is SepoliaConfig {
     /// @param recordId The ID of the donation record
     /// @return The encrypted timestamp
     function getEncryptedTimestamp(uint256 recordId) external view returns (euint32) {
-        require(records[recordId].exists, "Record does not exist");
+        if (!records[recordId].exists) revert RecordNotFound();
         return records[recordId].encryptedTimestamp;
     }
 
@@ -144,7 +150,7 @@ contract EncryptedDonationLog is SepoliaConfig {
     /// @return submitter The address that submitted the donation
     /// @return blockNumber The block number when the donation was submitted
     function getRecordMetadata(uint256 recordId) external view returns (address submitter, uint256 blockNumber) {
-        require(records[recordId].exists, "Record does not exist");
+        if (!records[recordId].exists) revert RecordNotFound();
         DonationRecord storage record = records[recordId];
         return (record.submitter, record.blockNumber);
     }
@@ -161,7 +167,7 @@ contract EncryptedDonationLog is SepoliaConfig {
     /// @param index The index in the user's donation list
     /// @return The record ID
     function getUserDonationIdAt(address user, uint256 index) external view returns (uint256) {
-        require(index < userDonations[user].length, "Index out of bounds");
+        if (index >= userDonations[user].length) revert IndexOutOfBounds();
         return userDonations[user][index];
     }
 
@@ -193,10 +199,8 @@ contract EncryptedDonationLog is SepoliaConfig {
         }
     }
 
-    /// @notice Get user donation level based on total donations
-    /// @param user The user address to query
-    /// @return level The donation level (1-5 based on donation count)
-    function getUserDonationLevel(address user) external view returns (uint256 level) {
+    /// @notice Get donation level based on total donations
+    function getUserDonationLevel(address user) public view returns (uint256 level) {
         uint256 donationCount = userDonations[user].length;
 
         if (donationCount >= 50) return 5;      // Diamond donor
@@ -206,17 +210,6 @@ contract EncryptedDonationLog is SepoliaConfig {
         if (donationCount >= 1) return 1;       // Bronze donor
 
         return 0; // No donations
-    }
-
-    /// @notice Get donation statistics for a user
-        uint256[] memory userRecordIds = userDonations[user];
-        totalDonations = userRecordIds.length;
-
-        if (totalDonations > 0) {
-            lastDonationId = userRecordIds[totalDonations - 1];
-        } else {
-            lastDonationId = 0;
-        }
     }
 
     /// @notice Get multiple donation record IDs for a user with pagination
